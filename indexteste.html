@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teste PABX</title>
+</head>
+<body>
+
+  <script src="https://fileschat.sfo2.cdn.digitaloceanspaces.com/public/libs/wlclient.js"></script>
+  <script>
+    const SIP_DOMAIN = 'pabxavsystem.avsti.com.br';
+  
+    function processNumber(numeroRaw) {
+      let s = String(numeroRaw || '').replace(/\D/g, "");
+      if (s.startsWith("55")) s = s.slice(2);
+      const ddd = s.slice(0,2) || "";
+      let assinante = s.slice(2) || "";
+      if (assinante.length === 8) assinante = "9" + assinante;
+      let numeroFinal = (ddd === '31') ? ddd + assinante : '031' + ddd + assinante;
+      return numeroFinal.replace(/\D/g,'');
+    }
+  
+    function extractRawNumber(obj) {
+      if (!obj) return null;
+      const keys = ['numero','telefone','phone','phoneNumber','mobile','celular','contactNumber'];
+      for (const k of keys) if (obj[k]) return obj[k];
+      if (obj.contato) for (const k of keys) if (obj.contato[k]) return obj.contato[k];
+      if (typeof obj === 'string') return obj;
+      for (const k in obj) {
+        try {
+          const v = obj[k];
+          if (v && (typeof v === 'string' || typeof v === 'number')) {
+            const digits = String(v).replace(/\D/g,'');
+            if (digits.length >= 8) return v;
+          }
+        } catch(e){}
+      }
+      return null;
+    }
+  
+    function openSipUriWithFallback(sipUri) {
+      try { window.location.href = sipUri; } catch(e){ console.error(e); }
+     /* setTimeout(() => {/*
+        window.WlExtension.confirmDialog({
+          title: 'Abrir softphone',
+          text: `Se o softphone não abriu automaticamente, deseja copiar a URI?\n\n${sipUri}`,
+          callback: (confirm) => {
+            if (confirm && navigator.clipboard) navigator.clipboard.writeText(sipUri);
+          }
+        });
+      }, 800);*/
+    }
+  
+    window.WlExtension.initialize({
+      buttons: {
+        'attendance-view': [
+          {
+            icon_url: 'https://img.icons8.com/?size=15&id=9730&format=png&color=000000',
+            text: 'PABX',
+            
+            callback: (atendimento) => {
+              const raw = extractRawNumber(atendimento) || extractRawNumber(atendimento?.contato);
+              if (!raw) {
+                return window.WlExtension.alert({ message: 'Número não encontrado no atendimento.', variant: 'error' });
+              }
+              const numero = processNumber(raw);
+              const sipUri = `sip:${numero}@${SIP_DOMAIN}`;
+  
+              window.WlExtension.confirmDialog({
+                title: 'Confirmar ligação',
+                text: `Deseja ligar para ${numero}?`,
+                callback: (ok) => { if (ok) openSipUriWithFallback(sipUri); }
+              });
+            }
+          }
+        ]
+      }
+    });
+  </script>
+
+</body>
+</html>
